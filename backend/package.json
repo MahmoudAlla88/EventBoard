@@ -1,0 +1,20 @@
+{
+  "name": "eventboard-backend",
+  "version": "1.0.0",
+  "description": "Express + MongoDB + Mongoose backend for EventBoard",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.0",
+    "dotenv": "^16.4.1",
+    "express": "^4.19.2",
+    "mongoose": "^8.6.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
