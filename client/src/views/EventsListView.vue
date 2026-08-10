@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { fetchEvents } from '@/api/events'
 import { fetchVenues } from '@/api/venues'
@@ -7,8 +8,8 @@ import { CATEGORIES } from '@/lib/categories'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import EventCard from '@/components/events/EventCard.vue'
 
 const ALL = '__all__' // sentinel: shadcn Select can't use an empty-string item value
 
@@ -55,20 +56,18 @@ const { data, isPending, isError, error } = useQuery({
 
 const events = computed(() => data.value?.data || [])
 const totalPages = computed(() => data.value?.totalPages || 1)
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-}
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
-    <div>
-      <h1 class="text-2xl font-semibold">Events</h1>
-      <p class="text-muted-foreground text-sm">Browse and search upcoming events.</p>
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold">Events</h1>
+        <p class="text-muted-foreground text-sm">Browse and search upcoming events.</p>
+      </div>
+      <Button as-child>
+        <RouterLink :to="{ name: 'create-event' }">+ Create event</RouterLink>
+      </Button>
     </div>
 
     <!-- Filters -->
@@ -113,26 +112,7 @@ function formatDate(iso) {
 
     <!-- Results -->
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <Card v-for="event in events" :key="event._id">
-        <CardHeader>
-          <CardTitle class="line-clamp-1">{{ event.title }}</CardTitle>
-          <CardDescription>{{ formatDate(event.startsAt) }}</CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-col gap-2 text-sm">
-          <p class="text-muted-foreground line-clamp-2">{{ event.description }}</p>
-          <p v-if="event.venue">{{ event.venue.name }} · {{ event.venue.city }}</p>
-          <p class="font-medium">{{ event.price === 0 ? 'Free' : `$${event.price}` }}</p>
-          <div v-if="event.categories?.length" class="flex flex-wrap gap-1">
-            <span
-              v-for="cat in event.categories"
-              :key="cat"
-              class="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
-            >
-              {{ cat }}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <EventCard v-for="event in events" :key="event._id" :event="event" />
     </div>
 
     <!-- Pagination -->

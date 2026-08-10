@@ -3,13 +3,12 @@
 A small events app: organizers publish events at venues, and people register to attend.
 Built with Node.js + Express, MongoDB (Mongoose) and Vue 3.
 
-> Frontend in progress — Events List page is done, Event Detail and Create Event
-> pages are next. Backend is complete. Final run-through and full submission
-> checklist will land in this README once everything is done.
+> All 3 required pages are done and backend is complete. Final polish pass
+> (README completeness check, NOTES.md wrap-up) still to come before submission.
 
 ## Stack
 - Backend: Node.js + Express + Mongoose (MongoDB)
-- Frontend: Vue 3 + Vue Router + Tailwind + shadcn-vue + TanStack Vue Query
+- Frontend: Vue 3 + Vue Router + Pinia + TanStack Vue Query + Tailwind + shadcn-vue
 - Database: MongoDB (Atlas)
 
 ## Requirements
@@ -63,12 +62,15 @@ cp .env.example .env   # VITE_API_URL, defaults to http://localhost:5000/api
 npm run dev              # http://localhost:5173
 ```
 
-Only the Events List page is wired up so far.
+All 3 pages: Events List (search/filters/pagination), Event Detail
+(register + attendees), Create Event (form with validation).
 
 ## What's done / what's left
 - ✅ Backend: all endpoints, models, validation (400/404/409), capacity +
   duplicate-registration rules, seed script — verified against real data.
-- ✅ Frontend: project scaffold, "logged in as" selector, Events List page.
-- ⏳ Frontend: Event Detail page, Create Event page.
+- ✅ Frontend: all 3 required pages, "logged in as" selector (Pinia),
+  register/attendees flow, create-event form with validation — tested live
+  end to end against the real API.
 - ⏭️ Skipped on purpose: JWT auth and Elasticsearch (both optional extras
   per the brief — see `NOTES.md` for reasoning).
+- ⏳ Left: final polish pass (docker-compose / tests if time allows).

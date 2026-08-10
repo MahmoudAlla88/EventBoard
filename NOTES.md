@@ -33,6 +33,21 @@ already has a seat. Duplicate is checked first now; the unique index on
 `Registration{user, event}` still backstops both paths against race
 conditions.
 
+## State management: Pinia, not Redux
+Redux and RTK Query are React-specific tooling, so they don't apply to a
+Vue 3 app. Used the direct Vue equivalents instead, keeping the same
+mental model that was asked for:
+- **Pinia** (`client/src/store/user/userSlice.js`) for the current
+  "logged in as" user — a named store with `state`/`actions`/`getters`,
+  the same shape as a Redux slice (`createSlice`). Pinia is Vue core
+  team's official replacement for Vuex and fills the exact role Redux
+  fills in React.
+- **`client/src/api/baseApi.js`** + one file per resource (`events.js`,
+  `venues.js`, `users.js`) — the same role RTK Query's `fetchBaseQuery`
+  and per-feature `injectEndpoints` play, adapted to `@tanstack/vue-query`
+  (Vue's TanStack Query, the direct RTK Query analogue: caching,
+  loading/error state, refetch, all framework-agnostic under the hood).
+
 ## Extra credit
 Skipped JWT auth and Elasticsearch on purpose. Both are explicitly optional
 in the brief, and given the interview goes through the code together, I'd

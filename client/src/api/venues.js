@@ -1,7 +1,7 @@
-import { apiClient } from './client'
+import { baseApi } from './baseApi'
 
 // GET /api/venues
 export async function fetchVenues() {
-  const { data } = await apiClient.get('/venues')
+  const { data } = await baseApi.get('/venues')
   return data
 }
