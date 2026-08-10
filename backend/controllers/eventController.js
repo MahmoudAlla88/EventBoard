@@ -170,6 +170,16 @@ const registerForEvent = asyncHandler(async (req, res) => {
   const userDoc = await User.findById(user);
   if (!userDoc) throw new ApiError(404, 'User not found');
 
+  // Check duplicate registration BEFORE capacity: if this user already has
+  // a seat, "event is full" would be a misleading answer to a person who's
+  // already registered. The unique index still guards this at the DB level
+  // for concurrent requests (race condition), this check just gives a
+  // clearer, correctly-prioritized error in the common case.
+  const existing = await Registration.findOne({ user, event: id });
+  if (existing) {
+    throw new ApiError(409, 'This user is already registered for this event');
+  }
+
   const currentTotal = await Registration.aggregate([
     { $match: { event: event._id } },
     { $group: { _id: null, total: { $sum: '$ticketCount' } } },
@@ -180,8 +190,6 @@ const registerForEvent = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'Event has reached the capacity of its venue');
   }
 
-  // Duplicate (same user + event) is caught by the unique index and
-  // surfaces as a 409 via the central error handler (Mongo error code 11000).
   const registration = await Registration.create({ user, event: id, ticketCount });
 
   res.status(201).json(registration);
