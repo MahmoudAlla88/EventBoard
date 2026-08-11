@@ -1,14 +1,31 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import EventsListView from '@/views/EventsListView.vue'
+import EventDetailView from '@/views/EventDetailView.vue'
+import CreateEventView from '@/views/CreateEventView.vue'
+import EditEventView from '@/views/EditEventView.vue'
 
-// Only the Events List route for now (see docs/tasks.md ticket #4).
-// Event Detail (/events/:id) and Create Event (/events/new) are added
-// once this first page is wired up and confirmed working end to end.
 const routes = [
   {
     path: '/',
     name: 'events-list',
     component: EventsListView,
+  },
+  {
+    path: '/events/new',
+    name: 'create-event',
+    component: CreateEventView,
+  },
+  {
+    path: '/events/:id',
+    name: 'event-detail',
+    component: EventDetailView,
+    props: true,
+  },
+  {
+    path: '/events/:id/edit',
+    name: 'edit-event',
+    component: EditEventView,
+    props: true,
   },
 ]
 
