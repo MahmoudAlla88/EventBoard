@@ -1,5 +1,9 @@
 <script setup>
-import UserSelector from '@/components/UserSelector.vue'
+import AuthStatus from '@/components/AuthStatus.vue'
+import { useUserSlice } from '@/store/user/userSlice'
+
+// Restore a logged-in session from a stored token (if any) once, on app start.
+useUserSlice().restoreSession()
 </script>
 
 <template>
@@ -7,7 +11,7 @@ import UserSelector from '@/components/UserSelector.vue'
     <header class="border-b">
       <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <router-link to="/" class="text-lg font-semibold">EventHub</router-link>
-        <UserSelector />
+        <AuthStatus />
       </div>
     </header>
 

@@ -2,7 +2,6 @@
 import { reactive, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { fetchVenues } from '@/api/venues'
-import { fetchUsers } from '@/api/users'
 import { CATEGORIES } from '@/lib/categories'
 import { toDatetimeLocalValue } from '@/lib/format'
 import { Input } from '@/components/ui/input'
@@ -16,6 +15,8 @@ import { cn } from '@/lib/utils'
 // Shared by CreateEventView (no initialValues) and EditEventView
 // (initialValues = the event being edited). The parent owns the actual
 // createEvent/updateEvent mutation call and just listens for `submit`.
+// Note: there's no organizer field — the backend sets the organizer to
+// whoever is logged in (JWT `req.user`), it's not something the form picks.
 const props = defineProps({
   initialValues: { type: Object, default: null },
   submitLabel: { type: String, default: 'Save' },
@@ -25,10 +26,9 @@ const props = defineProps({
 const emit = defineEmits(['submit'])
 
 const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: fetchVenues })
-const { data: users } = useQuery({ queryKey: ['users'], queryFn: fetchUsers })
 
 function blankForm() {
-  return { title: '', description: '', startsAt: '', price: '', venue: '', organizer: '', categories: [] }
+  return { title: '', description: '', startsAt: '', price: '', venue: '', categories: [] }
 }
 
 const form = reactive(blankForm())
@@ -45,7 +45,6 @@ watch(
     form.startsAt = toDatetimeLocalValue(values.startsAt)
     form.price = values.price
     form.venue = values.venue?._id || values.venue
-    form.organizer = values.organizer?._id || values.organizer
     form.categories = [...(values.categories || [])]
   },
   { immediate: true }
@@ -67,7 +66,6 @@ function validate() {
   if (!form.startsAt) errors.startsAt = 'Start date/time is required'
   if (form.price === '' || Number(form.price) < 0) errors.price = 'Price must be 0 or more'
   if (!form.venue) errors.venue = 'Venue is required'
-  if (!form.organizer) errors.organizer = 'Organizer is required'
   return Object.keys(errors).length === 0
 }
 
@@ -79,7 +77,6 @@ function onSubmit() {
     startsAt: new Date(form.startsAt).toISOString(),
     price: Number(form.price),
     venue: form.venue,
-    organizer: form.organizer,
     categories: form.categories,
   })
 }
@@ -112,31 +109,17 @@ function onSubmit() {
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4">
-      <div class="flex flex-col gap-1.5">
-        <Label>Venue</Label>
-        <Select v-model="form.venue">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select a venue" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="v in venues" :key="v._id" :value="v._id">{{ v.name }} ({{ v.city }})</SelectItem>
-          </SelectContent>
-        </Select>
-        <p v-if="errors.venue" class="text-sm text-destructive">{{ errors.venue }}</p>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <Label>Organizer</Label>
-        <Select v-model="form.organizer">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select an organizer" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="u in users" :key="u._id" :value="u._id">{{ u.name }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <p v-if="errors.organizer" class="text-sm text-destructive">{{ errors.organizer }}</p>
-      </div>
+    <div class="flex flex-col gap-1.5">
+      <Label>Venue</Label>
+      <Select v-model="form.venue">
+        <SelectTrigger class="w-full">
+          <SelectValue placeholder="Select a venue" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="v in venues" :key="v._id" :value="v._id">{{ v.name }} ({{ v.city }})</SelectItem>
+        </SelectContent>
+      </Select>
+      <p v-if="errors.venue" class="text-sm text-destructive">{{ errors.venue }}</p>
     </div>
 
     <div class="flex flex-col gap-1.5">

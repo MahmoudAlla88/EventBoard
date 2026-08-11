@@ -20,13 +20,19 @@ async function seed() {
     Registration.deleteMany({}),
   ]);
 
+  // Every seeded user shares one known password so reviewers can log in
+  // immediately without signing up — documented in README.md.
+  const SEED_PASSWORD = 'Password123!';
+
   console.log('Inserting users...');
-  const users = await User.insertMany([
-    { name: 'Alice Johnson', email: 'alice@example.com' },
-    { name: 'Bilal Ahmad', email: 'bilal@example.com' },
-    { name: 'Carla Gomez', email: 'carla@example.com' },
-    { name: 'Dana Kim', email: 'dana@example.com' },
-    { name: 'Omar Nasser', email: 'omar@example.com' },
+  // User.create() (not insertMany) so the password-hashing pre('save')
+  // hook on the User model actually runs for each document.
+  const users = await User.create([
+    { name: 'Alice Johnson', email: 'alice@example.com', password: SEED_PASSWORD },
+    { name: 'Bilal Ahmad', email: 'bilal@example.com', password: SEED_PASSWORD },
+    { name: 'Carla Gomez', email: 'carla@example.com', password: SEED_PASSWORD },
+    { name: 'Dana Kim', email: 'dana@example.com', password: SEED_PASSWORD },
+    { name: 'Omar Nasser', email: 'omar@example.com', password: SEED_PASSWORD },
   ]);
   const [alice, bilal, carla, dana, omar] = users;
 
@@ -127,6 +133,7 @@ async function seed() {
   console.log('Seed complete:');
   console.log(`  ${users.length} users, ${venues.length} venues, ${events.length} events`);
   console.log('  Art Fair (Irbid Community Hall) is at 4/5 capacity — good for testing register + capacity limits.');
+  console.log(`  Log in as any seeded user with password: ${SEED_PASSWORD}`);
 
   await mongoose.disconnect();
   process.exit(0);

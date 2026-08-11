@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Event = require('../models/Event');
 const Venue = require('../models/Venue');
-const User = require('../models/User');
 const Registration = require('../models/Registration');
 const asyncHandler = require('../middleware/asyncHandler');
 const { ApiError } = require('../middleware/errorHandler');
@@ -89,22 +88,17 @@ const getEvent = asyncHandler(async (req, res) => {
   res.json(event);
 });
 
-// POST /api/events
+// POST /api/events (requires auth — the organizer is whoever is logged in)
 const createEvent = asyncHandler(async (req, res) => {
-  const { title, description, startsAt, price, venue, organizer, categories } = req.body;
+  const { title, description, startsAt, price, venue, categories } = req.body;
 
-  if (!title || !description || !startsAt || price === undefined || !venue || !organizer) {
-    throw new ApiError(400, 'title, description, startsAt, price, venue and organizer are required');
+  if (!title || !description || !startsAt || price === undefined || !venue) {
+    throw new ApiError(400, 'title, description, startsAt, price and venue are required');
   }
   if (!isValidId(venue)) throw new ApiError(400, `Invalid venue id: ${venue}`);
-  if (!isValidId(organizer)) throw new ApiError(400, `Invalid organizer id: ${organizer}`);
 
-  const [venueDoc, organizerDoc] = await Promise.all([
-    Venue.findById(venue),
-    User.findById(organizer),
-  ]);
+  const venueDoc = await Venue.findById(venue);
   if (!venueDoc) throw new ApiError(400, 'venue does not exist');
-  if (!organizerDoc) throw new ApiError(400, 'organizer does not exist');
 
   const event = await Event.create({
     title,
@@ -112,7 +106,7 @@ const createEvent = asyncHandler(async (req, res) => {
     startsAt,
     price,
     venue,
-    organizer,
+    organizer: req.user._id,
     categories: Array.isArray(categories) ? categories : [],
   });
 
@@ -126,22 +120,23 @@ const createEvent = asyncHandler(async (req, res) => {
   res.status(201).json(populated);
 });
 
-// PUT /api/events/:id
+// PUT /api/events/:id (requires auth — organizer-only, see NOTES.md)
 const updateEvent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) throw new ApiError(400, `Invalid event id: ${id}`);
 
-  const { title, description, startsAt, price, venue, organizer, categories } = req.body;
+  const existing = await Event.findById(id);
+  if (!existing) throw new ApiError(404, 'Event not found');
+  if (String(existing.organizer) !== String(req.user._id)) {
+    throw new ApiError(403, 'Only the organizer can edit this event');
+  }
+
+  const { title, description, startsAt, price, venue, categories } = req.body;
 
   if (venue) {
     if (!isValidId(venue)) throw new ApiError(400, `Invalid venue id: ${venue}`);
     const venueDoc = await Venue.findById(venue);
     if (!venueDoc) throw new ApiError(400, 'venue does not exist');
-  }
-  if (organizer) {
-    if (!isValidId(organizer)) throw new ApiError(400, `Invalid organizer id: ${organizer}`);
-    const organizerDoc = await User.findById(organizer);
-    if (!organizerDoc) throw new ApiError(400, 'organizer does not exist');
   }
 
   const update = {};
@@ -150,8 +145,9 @@ const updateEvent = asyncHandler(async (req, res) => {
   if (startsAt !== undefined) update.startsAt = startsAt;
   if (price !== undefined) update.price = price;
   if (venue !== undefined) update.venue = venue;
-  if (organizer !== undefined) update.organizer = organizer;
   if (categories !== undefined) update.categories = categories;
+  // organizer is deliberately not editable here — ownership doesn't
+  // transfer through a plain field update.
 
   const event = await Event.findByIdAndUpdate(id, update, {
     new: true,
@@ -160,20 +156,23 @@ const updateEvent = asyncHandler(async (req, res) => {
     .populate('venue', 'name city address capacity')
     .populate('organizer', 'name email');
 
-  if (!event) throw new ApiError(404, 'Event not found');
-
   await indexEvent(event);
 
   res.json(event);
 });
 
-// DELETE /api/events/:id
+// DELETE /api/events/:id (requires auth — organizer-only, see NOTES.md)
 const deleteEvent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) throw new ApiError(400, `Invalid event id: ${id}`);
 
-  const event = await Event.findByIdAndDelete(id);
+  const event = await Event.findById(id);
   if (!event) throw new ApiError(404, 'Event not found');
+  if (String(event.organizer) !== String(req.user._id)) {
+    throw new ApiError(403, 'Only the organizer can delete this event');
+  }
+
+  await event.deleteOne();
 
   // Deleting an event must not leave its registrations behind.
   await Registration.deleteMany({ event: id });
@@ -182,22 +181,19 @@ const deleteEvent = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Event and its registrations were deleted' });
 });
 
-// POST /api/events/:id/register
+// POST /api/events/:id/register (requires auth — registers the logged-in user)
 const registerForEvent = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { user, ticketCount = 1 } = req.body;
+  const { ticketCount = 1 } = req.body;
+  const user = req.user._id;
 
   if (!isValidId(id)) throw new ApiError(400, `Invalid event id: ${id}`);
-  if (!user || !isValidId(user)) throw new ApiError(400, 'A valid user id is required');
   if (!Number.isInteger(ticketCount) || ticketCount < 1) {
     throw new ApiError(400, 'ticketCount must be a positive integer');
   }
 
   const event = await Event.findById(id).populate('venue', 'capacity');
   if (!event) throw new ApiError(404, 'Event not found');
-
-  const userDoc = await User.findById(user);
-  if (!userDoc) throw new ApiError(404, 'User not found');
 
   // Check duplicate registration BEFORE capacity: if this user already has
   // a seat, "event is full" would be a misleading answer to a person who's

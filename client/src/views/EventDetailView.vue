@@ -34,11 +34,20 @@ const { data: attendees, isPending: attendeesPending } = useQuery({
   queryFn: () => fetchAttendees(eventId.value),
 })
 
+// Only the organizer sees Edit/Delete — the backend enforces this too
+// (403 otherwise), this is just so a logged-in-but-not-owner visitor
+// doesn't see buttons that would fail.
+const isOwner = computed(
+  () => userStore.isLoggedIn && event.value?.organizer?._id === userStore.currentUserId
+)
+
 const registerError = ref('')
 const registerSuccess = ref(false)
 
 const { mutate: register, isPending: isRegistering } = useMutation({
-  mutationFn: () => registerForEvent(eventId.value, { user: userStore.currentUserId }),
+  // No `user` in the body anymore — the backend registers whoever the JWT
+  // says is logged in (see backend/controllers/eventController.js).
+  mutationFn: () => registerForEvent(eventId.value, {}),
   onSuccess: () => {
     registerError.value = ''
     registerSuccess.value = true
@@ -69,8 +78,6 @@ const { mutate: removeEvent, isPending: isDeleting } = useMutation({
 })
 
 function onDelete() {
-  // No auth in this app, so anyone can delete — a plain confirm() is the
-  // simplest guard against a stray click.
   if (window.confirm('Delete this event? This also removes its registrations.')) {
     removeEvent()
   }
@@ -81,7 +88,7 @@ function onDelete() {
   <div class="flex flex-col gap-6">
     <div class="flex items-center justify-between">
       <RouterLink to="/" class="text-sm text-muted-foreground hover:text-foreground">← Back to events</RouterLink>
-      <div v-if="event" class="flex gap-2">
+      <div v-if="isOwner" class="flex gap-2">
         <Button as-child variant="outline" size="sm">
           <RouterLink :to="{ name: 'edit-event', params: { id: eventId } }">Edit</RouterLink>
         </Button>
@@ -162,9 +169,12 @@ function onDelete() {
 
           <Separator />
 
-          <Alert v-if="!userStore.currentUserId" class="border-none p-0">
+          <Alert v-if="!userStore.isLoggedIn" class="border-none p-0">
             <AlertDescription class="text-muted-foreground">
-              Pick a user from "Logged in as" (top right) to register.
+              <RouterLink :to="{ name: 'login', query: { redirect: $route.fullPath } }" class="text-primary hover:underline">
+                Log in
+              </RouterLink>
+              to register.
             </AlertDescription>
           </Alert>
 

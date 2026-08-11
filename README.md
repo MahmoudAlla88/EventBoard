@@ -2,10 +2,11 @@
 
 ## 1. What it does
 A small events app. Organizers publish events at venues; other users
-browse/search/filter those events and register to attend. There's no login —
-a "logged in as" dropdown (top right) lets you pick which seeded user you're
-acting as. Built with Node.js + Express, MongoDB (Mongoose), Vue 3, and
-Elasticsearch for search.
+browse/search/filter those events and register to attend. Login is real
+(JWT-based, extra credit — see below): register or log in, then create
+events (you're automatically the organizer) and register for others'
+events. Built with Node.js + Express, MongoDB (Mongoose), Vue 3,
+Elasticsearch for search, and JWT for auth.
 
 ## 2. Requirements & versions
 - **Node.js 18+** (developed and tested on Node 24)
@@ -45,6 +46,20 @@ return a JSON cluster info response once ready). The backend creates the
 index automatically on startup, and `npm run seed` (backend) indexes all
 seeded events — see NOTES.md for how the index is kept in sync.
 
+## Authentication (extra credit — implemented, JWT)
+Register/login pages replace the brief's original "logged in as" dropdown
+— see NOTES.md for why. **All 5 seeded users share one password**, so you
+can log in immediately without registering:
+- Email: any of `alice@example.com`, `bilal@example.com`,
+  `carla@example.com`, `dana@example.com`, `omar@example.com`
+- Password: `Password123!`
+
+Creating an event makes you its organizer automatically; only the
+organizer can edit/delete their own events (enforced server-side, 403
+otherwise). Browsing events, viewing details, and searching all still work
+without logging in — only creating/editing/deleting events and
+registering for one require it.
+
 ## 4. Environment variables
 Both `backend/.env.example` and `client/.env.example` are committed — copy
 each to `.env` in its own folder and fill in as needed.
@@ -56,6 +71,8 @@ each to `.env` in its own folder and fill in as needed.
 | `PORT` | `5000` |
 | `ELASTICSEARCH_URL` | `http://localhost:9200` (optional, defaults to this) |
 | `ELASTICSEARCH_INDEX` | `events` (optional, defaults to this) |
+| `JWT_SECRET` | any long random string |
+| `JWT_EXPIRES_IN` | `7d` (optional, defaults to this) |
 
 **`client/.env`**
 | Var | Example |
@@ -68,7 +85,7 @@ each to `.env` in its own folder and fill in as needed.
 ```bash
 cd backend
 npm install
-cp .env.example .env   # fill in MONGODB_URI
+cp .env.example .env   # fill in MONGODB_URI and JWT_SECRET
 npm run dev
 ```
 Health check: `GET http://localhost:5000/api/health` → `{"status":"ok"}`
@@ -84,8 +101,9 @@ npm run dev
 ## 6. Seed script
 Populates the database with sample data so there's something to look at
 immediately (5 users, 3 venues, 6 events, 9 registrations — one venue seeded
-at 4/5 capacity to make the capacity limit easy to test). Also indexes all
-seeded events into Elasticsearch, if it's running.
+at 4/5 capacity to make the capacity limit easy to test). Every seeded user
+gets the password `Password123!` (see Authentication above). Also indexes
+all seeded events into Elasticsearch, if it's running.
 ```bash
 cd backend
 npm run seed
@@ -95,38 +113,42 @@ Safe to re-run any time — it wipes and re-inserts all four collections.
 ## 7. API endpoints
 | Method | Route | Does |
 |---|---|---|
+| POST | `/api/auth/register` | Create an account, returns a JWT |
+| POST | `/api/auth/login` | Log in, returns a JWT |
+| GET | `/api/auth/me` | 🔒 Current logged-in user |
 | GET | `/api/events` | List events — `q` (Elasticsearch search, typo-tolerant + highlighted), `city`, `category`, `page`, `size` |
 | GET | `/api/events/:id` | One event, with venue + organizer populated |
-| POST | `/api/events` | Create an event |
-| PUT | `/api/events/:id` | Update an event |
-| DELETE | `/api/events/:id` | Delete an event and its registrations |
-| POST | `/api/events/:id/register` | Register a user for an event |
+| POST | `/api/events` | 🔒 Create an event (you become the organizer) |
+| PUT | `/api/events/:id` | 🔒 Update an event (organizer-only) |
+| DELETE | `/api/events/:id` | 🔒 Delete an event and its registrations (organizer-only) |
+| POST | `/api/events/:id/register` | 🔒 Register the logged-in user for an event |
 | GET | `/api/events/:id/attendees` | List users registered for an event |
 | GET | `/api/venues` | List venues |
-| GET | `/api/users` | List users (for the "logged in as" dropdown) |
+| GET | `/api/users` | List users |
 | GET | `/api/stats/top-venues` | Top 5 venues by registrations (aggregation pipeline) |
+
+🔒 = requires `Authorization: Bearer <token>`
 
 ## 8. What's completed / what's skipped / known issues
 
 **Completed — everything in the required brief:**
 - All 4 collections with the relationships as specified (see `NOTES.md` for why).
-- All 10 API endpoints above, validated (400/404/409), including the
-  capacity limit and duplicate-registration rules, compound unique index
-  enforced at the MongoDB level, cascade delete of registrations.
+- All required endpoints, validated (400/404/409), including the capacity
+  limit and duplicate-registration rules, compound unique index enforced
+  at the MongoDB level, cascade delete of registrations.
 - All 3 required frontend pages — Events List (search + city/category
   filters + pagination), Event Detail (venue/organizer/categories/attendees
-  + register), Create Event (validated form with venue/organizer dropdowns)
-  — plus "logged in as" user selector.
+  + register), Create Event (validated form).
 
 **Completed extra credit:**
 - **Elasticsearch** — explicit index mapping, kept in sync on
   create/update/delete, typo tolerance + match highlighting. See NOTES.md.
+- **JWT authentication** — register/login, hashed passwords, protected
+  routes, token sent from Vue, plus the bonus role check (organizer can
+  only edit their own events). See NOTES.md.
 - Not required but built so every backend endpoint is actually exercised
   from the UI (not just curl-tested): Edit Event page + Delete button, and
   a "Top venues" widget using the aggregation endpoint.
-
-**Skipped on purpose:**
-- JWT authentication — optional per the brief; see `NOTES.md` for reasoning.
 
 **Known issues:** none currently known. If something breaks in your
 environment, it's most likely MongoDB connectivity (Atlas Network Access /
@@ -134,7 +156,7 @@ IP whitelist) — see section 3 above. Elasticsearch being down does not
 break anything except the `q` search parameter.
 
 ## Stack
-- Backend: Node.js + Express + Mongoose (MongoDB) + Elasticsearch (search)
+- Backend: Node.js + Express + Mongoose (MongoDB) + Elasticsearch (search) + JWT/bcryptjs (auth)
 - Frontend: Vue 3 + Vue Router + Pinia + TanStack Vue Query + Tailwind + shadcn-vue
 
 ## Structure

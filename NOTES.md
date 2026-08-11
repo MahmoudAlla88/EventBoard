@@ -44,6 +44,37 @@ half-finished search implementations.
   -p 9200:9200 -e "discovery.type=single-node" -e
   "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.15.0`
 
+## Authentication (JWT)
+Added after the app was already fully working with the brief's "no login,
+pick a user from a dropdown" model — implementing this genuinely changes
+that model (see below), so it's on its own branch until tested rather than
+going straight into `main`.
+- `POST /api/auth/register` and `/login` issue a JWT (`jsonwebtoken`,
+  7-day expiry) signed with `JWT_SECRET`. Passwords are hashed with
+  **bcryptjs** (pure JS, no native build step — keeps `npm install`
+  reliable for whoever's grading this) via a `pre('save')` hook on the
+  `User` model. The password field has `select: false`, so it's never
+  returned by a plain `User.find()` — auth code opts back in explicitly
+  with `.select('+password')`.
+- `middleware/auth.js` (`protect`) verifies the `Authorization: Bearer
+  <token>` header and attaches the user document to `req.user`.
+- **What changed vs. the no-login model**: `organizer` on `Event` is no
+  longer a field the client picks — `POST /api/events` sets it to
+  `req.user._id` automatically. `POST /api/events/:id/register` registers
+  `req.user._id`, not a `user` id from the request body. Both routes,
+  plus `PUT`/`DELETE /api/events/:id`, require `protect`.
+- **Bonus role check**: `PUT`/`DELETE /api/events/:id` compare
+  `event.organizer` to `req.user._id` and return `403` if they don't
+  match — an organizer can only edit/delete their own events. There's no
+  separate `role` field on `User`; "organizer" is contextual (whoever
+  created *that* event), which matches the data model already in place.
+- The old "logged in as" dropdown (reading `GET /api/users`) is replaced
+  by real login/register pages. `GET /api/users` itself is untouched and
+  still works (still fulfils that line in the brief's endpoint table) —
+  it just isn't rendered as a raw list in the UI anymore.
+- Seeded users all share one password (`Password123!`, see README) so
+  whoever's testing this can log in immediately without registering.
+
 ## Registration: duplicate vs. capacity ordering
 `POST /api/events/:id/register` checks for an existing registration
 **before** checking venue capacity. Found this the hard way while testing:
@@ -70,27 +101,29 @@ mental model that was asked for:
   loading/error state, refetch, all framework-agnostic under the hood).
 
 ## Extra credit
-Implemented **Elasticsearch** (see "Text search" above) — I could explain
-every line of it, which was the bar for taking on an optional extra.
-Skipped **JWT auth** on purpose, still: it's a much bigger surface
-(hashing, tokens, protected routes, roles) for a no-login app the brief
-explicitly says to keep login-free, and I'd rather spend the extra time
-made available by a clean Elasticsearch implementation than bolt on auth
-that isn't asked for.
+Implemented both optional extras: **Elasticsearch** (see "Text search")
+and **JWT authentication** (see "Authentication" above) — both requested
+after the initial (already-complete) submission, both built on their own
+branches and merged only once fully tested, and both are things I could
+explain line by line, which was the bar I set for taking either one on.
 
 ## What I'd improve with more time
 - A waitlist instead of hard-rejecting registrations once a venue is full.
-- A few automated tests around the capacity/duplicate registration logic
-  and the Elasticsearch sync, since those are the trickiest parts of the app.
+- A few automated tests around the capacity/duplicate registration logic,
+  the Elasticsearch sync, and the auth/ownership checks — the trickiest
+  parts of the app.
 - `docker-compose.yml` to start Elasticsearch (and Mongo, for anyone who'd
   rather not use Atlas) alongside the app with one command.
+- A refresh-token flow — right now a JWT is just valid for 7 days flat,
+  no revocation or refresh.
 
 ## Status
-Complete, including the Elasticsearch extra credit. Backend: seed script +
-every endpoint verified against real data (pagination, Elasticsearch `q`
-search with typo tolerance + highlighting, city/category filters,
-single-event populate, attendees, top-venues aggregation, 400/404/409
-paths, cascade delete, index kept in sync on create/update/delete).
-Frontend: all 3 required pages plus Edit Event, tested live end to end
+Complete, including both extra credits (Elasticsearch, JWT auth). Backend:
+seed script + every endpoint verified against real data (pagination,
+Elasticsearch `q` search with typo tolerance + highlighting, city/category
+filters, single-event populate, attendees, top-venues aggregation,
+400/404/409/401/403 paths, cascade delete, index kept in sync on
+create/update/delete, register/login/ownership checks). Frontend: all 3
+required pages plus Edit Event, Login/Register, tested live end to end
 against the real API with zero console errors. See `README.md` §8 for the
 full completed/skipped breakdown.
