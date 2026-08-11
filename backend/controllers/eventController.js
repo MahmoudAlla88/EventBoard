@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Registration = require('../models/Registration');
 const asyncHandler = require('../middleware/asyncHandler');
 const { ApiError } = require('../middleware/errorHandler');
+const { indexEvent, removeEventFromIndex, searchEvents } = require('../services/eventSearch');
 
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -16,6 +17,33 @@ const listEvents = asyncHandler(async (req, res) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const size = Math.min(Math.max(parseInt(req.query.size, 10) || 10, 1), 100);
 
+  // Free-text search (q) is served by Elasticsearch, not MongoDB — see
+  // NOTES.md. City/category-only browsing (no q) has no reason to involve
+  // ES, so it keeps using a plain Mongo find.
+  if (q) {
+    const { total, ids, highlights } = await searchEvents({ q, city, category, page, size });
+
+    // Elasticsearch decided *which* events match and in what order;
+    // MongoDB is still the source of truth for the actual event data, so
+    // re-fetch by id and put the results back in ES's relevance order.
+    const events = await Event.find({ _id: { $in: ids } })
+      .populate('venue', 'name city address capacity')
+      .populate('organizer', 'name email');
+    const byId = new Map(events.map((e) => [String(e._id), e]));
+    const ordered = ids
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((event) => ({ ...event.toObject(), _highlight: highlights[String(event._id)] }));
+
+    return res.json({
+      data: ordered,
+      page,
+      size,
+      total,
+      totalPages: Math.ceil(total / size) || 1,
+    });
+  }
+
   const filter = {};
 
   if (category) {
@@ -26,10 +54,6 @@ const listEvents = asyncHandler(async (req, res) => {
   if (city) {
     const venues = await Venue.find({ city: new RegExp(`^${city}$`, 'i') }).select('_id');
     filter.venue = { $in: venues.map((v) => v._id) };
-  }
-
-  if (q) {
-    filter.$text = { $search: q };
   }
 
   const [events, total] = await Promise.all([
@@ -97,6 +121,8 @@ const createEvent = asyncHandler(async (req, res) => {
     { path: 'organizer', select: 'name email' },
   ]);
 
+  await indexEvent(populated);
+
   res.status(201).json(populated);
 });
 
@@ -136,6 +162,8 @@ const updateEvent = asyncHandler(async (req, res) => {
 
   if (!event) throw new ApiError(404, 'Event not found');
 
+  await indexEvent(event);
+
   res.json(event);
 });
 
@@ -149,6 +177,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
 
   // Deleting an event must not leave its registrations behind.
   await Registration.deleteMany({ event: id });
+  await removeEventFromIndex(id);
 
   res.status(200).json({ message: 'Event and its registrations were deleted' });
 });

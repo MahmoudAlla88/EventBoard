@@ -1,6 +1,8 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
+const { ensureEventsIndex } = require('./config/elasticsearch');
+const { reindexAll } = require('./services/eventSearch');
 
 const User = require('./models/User');
 const Venue = require('./models/Venue');
@@ -112,6 +114,15 @@ async function seed() {
     { user: carla._id, event: artFair._id, ticketCount: 1 },
     { user: dana._id, event: artFair._id, ticketCount: 1 },
   ]);
+
+  console.log('Indexing events in Elasticsearch...');
+  try {
+    await ensureEventsIndex();
+    const indexed = await reindexAll(Event);
+    console.log(`  ${indexed} events indexed.`);
+  } catch (err) {
+    console.warn('  Skipped — Elasticsearch is not reachable:', err.message);
+  }
 
   console.log('Seed complete:');
   console.log(`  ${users.length} users, ${venues.length} venues, ${events.length} events`);

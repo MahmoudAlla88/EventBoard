@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { ensureEventsIndex } = require('./config/elasticsearch');
 const { errorHandler } = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
 
@@ -29,6 +30,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 connectDB()
+  .then(() => ensureEventsIndex()) // non-fatal if Elasticsearch is unreachable — see config/elasticsearch.js
   .then(() => {
     app.listen(PORT, () => console.log(`EventHub API listening on http://localhost:${PORT}`));
   })
