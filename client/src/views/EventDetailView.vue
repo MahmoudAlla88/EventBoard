@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { fetchEvent, fetchAttendees, registerForEvent } from '@/api/events'
+import { fetchEvent, fetchAttendees, registerForEvent, deleteEvent } from '@/api/events'
 import { useUserSlice } from '@/store/user/userSlice'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,6 +13,7 @@ import CategoryBadge from '@/components/events/CategoryBadge.vue'
 import { formatDateTime, formatPrice } from '@/lib/format'
 
 const route = useRoute()
+const router = useRouter()
 const eventId = computed(() => route.params.id)
 
 const userStore = useUserSlice()
@@ -53,11 +54,46 @@ const { mutate: register, isPending: isRegistering } = useMutation({
 const alreadyRegistered = computed(() =>
   (attendees.value || []).some((r) => r.user?._id === userStore.currentUserId)
 )
+
+const deleteError = ref('')
+
+const { mutate: removeEvent, isPending: isDeleting } = useMutation({
+  mutationFn: () => deleteEvent(eventId.value),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['events'] })
+    router.push({ name: 'events-list' })
+  },
+  onError: (err) => {
+    deleteError.value = err.message
+  },
+})
+
+function onDelete() {
+  // No auth in this app, so anyone can delete — a plain confirm() is the
+  // simplest guard against a stray click.
+  if (window.confirm('Delete this event? This also removes its registrations.')) {
+    removeEvent()
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
-    <RouterLink to="/" class="text-sm text-muted-foreground hover:text-foreground">← Back to events</RouterLink>
+    <div class="flex items-center justify-between">
+      <RouterLink to="/" class="text-sm text-muted-foreground hover:text-foreground">← Back to events</RouterLink>
+      <div v-if="event" class="flex gap-2">
+        <Button as-child variant="outline" size="sm">
+          <RouterLink :to="{ name: 'edit-event', params: { id: eventId } }">Edit</RouterLink>
+        </Button>
+        <Button variant="outline" size="sm" class="text-destructive hover:text-destructive" :disabled="isDeleting" @click="onDelete">
+          {{ isDeleting ? 'Deleting…' : 'Delete' }}
+        </Button>
+      </div>
+    </div>
+
+    <Alert v-if="deleteError" variant="destructive">
+      <AlertDescription>{{ deleteError }}</AlertDescription>
+    </Alert>
 
     <!-- Loading -->
     <div v-if="isPending" class="flex flex-col gap-4">

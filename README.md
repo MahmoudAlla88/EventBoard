@@ -62,15 +62,17 @@ cp .env.example .env   # VITE_API_URL, defaults to http://localhost:5000/api
 npm run dev              # http://localhost:5173
 ```
 
-All 3 pages: Events List (search/filters/pagination), Event Detail
-(register + attendees), Create Event (form with validation).
+All 3 required pages: Events List (search/filters/pagination + a "top
+venues" widget), Event Detail (register + attendees + edit/delete), Create
+Event (form with validation). Edit Event reuses the same form component.
 
 ## What's done / what's left
-- ✅ Backend: all endpoints, models, validation (400/404/409), capacity +
+- Backend: all 10 endpoints, models, validation (400/404/409), capacity +
   duplicate-registration rules, seed script — verified against real data.
-- ✅ Frontend: all 3 required pages, "logged in as" selector (Pinia),
-  register/attendees flow, create-event form with validation — tested live
-  end to end against the real API.
-- ⏭️ Skipped on purpose: JWT auth and Elasticsearch (both optional extras
+- Frontend: all 3 required pages, plus Edit Event so every backend
+  endpoint (including update/delete and the top-venues aggregation) is
+  actually exercised from the UI, not just curl-tested. "Logged in as"
+  selector (Pinia), register/attendees flow — tested live end to end.
+- Skipped on purpose: JWT auth and Elasticsearch (both optional extras
   per the brief — see `NOTES.md` for reasoning).
-- ⏳ Left: final polish pass (docker-compose / tests if time allows).
+- Left: final polish pass (docker-compose / tests if time allows).
