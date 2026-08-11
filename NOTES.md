@@ -17,11 +17,32 @@
   (`DELETE /api/events/:id`).
 
 ## Text search
-- Implemented with a MongoDB **text index** on `Event.title` and `Event.description`
-  (`eventSchema.index({ title: 'text', description: 'text' })`), queried via `$text`.
-- Chosen over regex scanning because it's built into MongoDB (no extra
-  infrastructure), handles multi-word queries and relevance ranking reasonably well,
-  and is a straightforward upgrade path to Elasticsearch later if needed.
+Implemented with **Elasticsearch** (the brief's extra-credit option), not
+MongoDB — I originally shipped a MongoDB `$text` index and switched it out
+once I decided to build the ES extra credit properly rather than leave two
+half-finished search implementations.
+- `backend/config/elasticsearch.js` creates an `events` index with an
+  **explicit mapping** at startup (`title`/`description` as `text`,
+  `venue.city`/`categories` as `keyword` for exact-match filtering,
+  `price`/`startsAt` typed) — never relies on ES's dynamic mapping.
+- `backend/services/eventSearch.js` keeps the index in sync: `indexEvent()`
+  runs after every create/update, `removeEventFromIndex()` after every
+  delete. **MongoDB stays the source of truth** — the ES doc only carries
+  what's needed to search/filter/rank; the actual API response is always
+  re-fetched from Mongo by the ids ES returned, in ES's relevance order.
+- `GET /api/events?q=` only hits Elasticsearch when `q` is present; plain
+  browsing/filtering (no `q`) still goes straight to Mongo, since ES adds
+  nothing there.
+- **Bonus implemented**: typo tolerance (`fuzziness: 'AUTO'` on the
+  `multi_match` query — e.g. `q=meetng` matches "Meetup") and highlighting
+  (`<mark>` tags around matched words, returned as `_highlight` on each
+  result).
+- If Elasticsearch is unreachable, indexing/search calls log a warning and
+  fail gracefully instead of crashing the API (`config/elasticsearch.js`,
+  `services/eventSearch.js`) — it's explicitly a bonus layer on top of Mongo.
+- Run locally via Docker (see README §3): `docker run -d --name eventhub-es
+  -p 9200:9200 -e "discovery.type=single-node" -e
+  "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.15.0`
 
 ## Registration: duplicate vs. capacity ordering
 `POST /api/events/:id/register` checks for an existing registration
@@ -49,21 +70,27 @@ mental model that was asked for:
   loading/error state, refetch, all framework-agnostic under the hood).
 
 ## Extra credit
-Skipped JWT auth and Elasticsearch on purpose. Both are explicitly optional
-in the brief, and given the interview goes through the code together, I'd
-rather ship a smaller app I can explain every line of than a bigger one
-with auth/search plumbing bolted on that I can't justify under questioning.
+Implemented **Elasticsearch** (see "Text search" above) — I could explain
+every line of it, which was the bar for taking on an optional extra.
+Skipped **JWT auth** on purpose, still: it's a much bigger surface
+(hashing, tokens, protected routes, roles) for a no-login app the brief
+explicitly says to keep login-free, and I'd rather spend the extra time
+made available by a clean Elasticsearch implementation than bolt on auth
+that isn't asked for.
 
 ## What I'd improve with more time
-- Elasticsearch-backed search with typo tolerance and highlighting (see above).
 - A waitlist instead of hard-rejecting registrations once a venue is full.
-- A few automated tests around the capacity/duplicate registration logic,
-  since that's the trickiest business rule in the app.
+- A few automated tests around the capacity/duplicate registration logic
+  and the Elasticsearch sync, since those are the trickiest parts of the app.
+- `docker-compose.yml` to start Elasticsearch (and Mongo, for anyone who'd
+  rather not use Atlas) alongside the app with one command.
 
 ## Status
-Complete. Backend: seed script + every endpoint verified against real data
-(pagination, `q` search, city/category filters, single-event populate,
-attendees, top-venues aggregation, 400/404/409 paths, cascade delete).
+Complete, including the Elasticsearch extra credit. Backend: seed script +
+every endpoint verified against real data (pagination, Elasticsearch `q`
+search with typo tolerance + highlighting, city/category filters,
+single-event populate, attendees, top-venues aggregation, 400/404/409
+paths, cascade delete, index kept in sync on create/update/delete).
 Frontend: all 3 required pages plus Edit Event, tested live end to end
 against the real API with zero console errors. See `README.md` §8 for the
 full completed/skipped breakdown.

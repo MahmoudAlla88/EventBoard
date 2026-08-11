@@ -9,6 +9,7 @@
     "seed": "node seed.js"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^8.19.2",
     "cors": "^2.8.0",
     "dotenv": "^16.4.1",
     "express": "^4.19.2",

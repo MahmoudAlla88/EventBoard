@@ -40,9 +40,9 @@ const eventSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Supports GET /api/events?q= text search across title + description.
-eventSchema.index({ title: 'text', description: 'text' });
-// Supports filtering by category quickly.
+// Free-text search (GET /api/events?q=) is served by Elasticsearch, not
+// MongoDB — see backend/services/eventSearch.js and NOTES.md. This index
+// just supports filtering by category quickly.
 eventSchema.index({ categories: 1 });
 
 module.exports = mongoose.model('Event', eventSchema);
