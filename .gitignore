@@ -5,3 +5,6 @@ dist/
 
 # Internal planning notes
 /docs/
+
+# Local dev-tooling config, not part of the app
+/.claude/
