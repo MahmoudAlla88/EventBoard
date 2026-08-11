@@ -61,8 +61,9 @@ with auth/search plumbing bolted on that I can't justify under questioning.
   since that's the trickiest business rule in the app.
 
 ## Status
-Backend complete and verified: seed script + every endpoint tested against
-real data (pagination, `q` search, city/category filters, single-event
-populate, attendees, top-venues aggregation, 400/404/409 paths, cascade
-delete). Frontend: Events List page done; Event Detail and Create Event
-pages in progress.
+Complete. Backend: seed script + every endpoint verified against real data
+(pagination, `q` search, city/category filters, single-event populate,
+attendees, top-venues aggregation, 400/404/409 paths, cascade delete).
+Frontend: all 3 required pages plus Edit Event, tested live end to end
+against the real API with zero console errors. See `README.md` §8 for the
+full completed/skipped breakdown.
